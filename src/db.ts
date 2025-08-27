@@ -4,13 +4,19 @@ import { randomUUID } from "crypto";
 
 const pool = new Pool(
   process.env.DATABASE_URL
-    ? { connectionString: process.env.DATABASE_URL, ssl: process.env.PGSSLMODE === "require" ? { rejectUnauthorized: false } : undefined }
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl:
+          process.env.PGSSLMODE === "require"
+            ? { rejectUnauthorized: false }
+            : undefined,
+      }
     : {
         host: process.env.PGHOST || "localhost",
         port: +(process.env.PGPORT || 5432),
         user: process.env.PGUSER || "postgres",
-        password: process.env.PGPASSWORD,
-        database: process.env.PGDATABASE || "ezpassbot",
+        password: process.env.PGPASSWORD || "",
+        database: process.env.PGDATABASE || "easypay",
       }
 );
 
@@ -22,131 +28,159 @@ export type RequestRow = {
   chat_id: string;
   plan_label: PlanLabel;
   plate: string;
-  plate_norm: string;
   invoice: string;
-  invoice_norm: string;
   ezpass_account: string | null;
-  ezpass_account_norm: string | null;
   status: ReqStatus;
+  total_usd: number | null;
+  pay_url: string | null;
   session_id: string | null;
-  checkout_url: string | null;
-  total_usd: number;
-  toll_usd: number;
-  service_usd: number;
-  fees_usd: number;
-  decline_reason: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export function normPlateOrInvoice(x: string) {
-  return x.trim().replace(/[\u00A0\u202F\s]+/g, "").replace(/[–—−]/g, "-").toUpperCase();
-}
-export function normAcc(x: string) {
-  return x.replace(/[^\d]/g, "");
+const norm = (s: string) =>
+  (s || "")
+    .trim()
+    .replace(/[\u00A0\u202F\s]+/g, "")
+    .replace(/[–—−]/g, "-")
+    .toUpperCase();
+const normAcc = (s?: string) => (s ? s.replace(/[^\d]/g, "") : "");
+
+/** создаёт таблицу и индексы, если их ещё нет */
+export async function ensureSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS requests (
+      id              TEXT PRIMARY KEY,
+      chat_id         TEXT NOT NULL,
+      plan_label      TEXT NOT NULL,
+      plate           TEXT NOT NULL,
+      invoice         TEXT NOT NULL,
+      ezpass_account  TEXT,
+      status          TEXT NOT NULL,
+      total_usd       NUMERIC,
+      pay_url         TEXT,
+      session_id      TEXT,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    -- один «активный» (не completed) запрос на уникальную четвёрку
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_req_active
+      ON requests (chat_id, plan_label, plate, invoice)
+      WHERE status <> 'completed';
+    CREATE INDEX IF NOT EXISTS idx_requests_chat_created
+      ON requests (chat_id, created_at DESC);
+  `);
 }
 
-export async function findByChatInvoice(chatId: number | string, invoice: string) {
-  const res = await pool.query<RequestRow>(
-    `SELECT * FROM requests WHERE chat_id = $1 AND invoice_norm = $2 LIMIT 1`,
-    [String(chatId), normPlateOrInvoice(invoice)]
+/** История заявок по чату */
+export async function listByChat(chatId: string, limit = 15): Promise<RequestRow[]> {
+  const q = await pool.query(
+    `SELECT * FROM requests WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2`,
+    [String(chatId), limit]
   );
-  return res.rows[0];
+  return q.rows as RequestRow[];
 }
 
-export async function findById(id: string) {
-  const res = await pool.query<RequestRow>(`SELECT * FROM requests WHERE id = $1`, [id]);
-  return res.rows[0];
+/** Найти любую «активную» (не completed) по ключу */
+export async function findActive(chatId: string, plan: PlanLabel, plate: string, invoice: string) {
+  const q = await pool.query(
+    `SELECT * FROM requests
+     WHERE chat_id=$1 AND plan_label=$2 AND plate=$3 AND invoice=$4
+       AND status <> 'completed'
+     ORDER BY created_at DESC LIMIT 1`,
+    [String(chatId), plan, norm(plate), norm(invoice)]
+  );
+  return (q.rows[0] as RequestRow) || null;
 }
 
-export async function listByChat(chatId: string | number, limit = 10) {
-  const sql = `
-    SELECT id, plan_label, status, plate, invoice, checkout_url,
-           total_usd::float   AS total_usd,
-           toll_usd::float    AS toll_usd,
-           service_usd::float AS service_usd,
-           fees_usd::float    AS fees_usd,
-           created_at
-    FROM requests
-    WHERE chat_id = $1
-    ORDER BY created_at DESC
-    LIMIT $2
-  `;
-  const { rows } = await pool.query(sql, [String(chatId), limit]);
-  return rows;
-}
-
-
-
-export async function createRequestCreating(args: {
-  chatId: number | string;
+/** Вставить creating либо получить уже существующую (без дублей) */
+export async function insertCreatingOrGetExisting(opts: {
+  chatId: string | number;
   plan: PlanLabel;
   plate: string;
   invoice: string;
   ezpassAccount?: string;
-  totals: { total: number; toll: number; service: number; fees: number };
+  totalUsd?: number;
 }) {
   const id = randomUUID();
-  const plate_norm = normPlateOrInvoice(args.plate || "");
-  const invoice_norm = normPlateOrInvoice(args.invoice || "");
-  const ezpass_account_norm = args.ezpassAccount ? normAcc(args.ezpassAccount) : null;
+  const vals = [
+    id,
+    String(opts.chatId),
+    opts.plan,
+    norm(opts.plate),
+    norm(opts.invoice),
+    normAcc(opts.ezpassAccount || ""),
+    "creating",
+    opts.totalUsd ?? null,
+  ];
+  const ins = await pool.query(
+    `INSERT INTO requests
+       (id, chat_id, plan_label, plate, invoice, ezpass_account, status, total_usd)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     ON CONFLICT (chat_id, plan_label, plate, invoice) DO NOTHING
+     RETURNING *`,
+    vals
+  );
 
-  try {
-    const res = await pool.query<RequestRow>(
-      `INSERT INTO requests
-        (id, chat_id, plan_label, plate, plate_norm, invoice, invoice_norm,
-         ezpass_account, ezpass_account_norm, status,
-         total_usd, toll_usd, service_usd, fees_usd)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'creating',$10,$11,$12,$13)
-       RETURNING *`,
-      [
-        id, String(args.chatId), args.plan,
-        args.plate, plate_norm, args.invoice, invoice_norm,
-        args.ezpassAccount || null, ezpass_account_norm,
-        args.totals.total, args.totals.toll, args.totals.service, args.totals.fees
-      ]
-    );
-    return res.rows[0];
-  } catch (e: any) {
-    if (e?.code === "23505") {
-      const existing = await findByChatInvoice(args.chatId, args.invoice);
-      return existing!;
-    }
-    throw e;
+  if (ins.rows[0]) {
+    return { created: true as const, row: ins.rows[0] as RequestRow };
   }
-}
 
-export async function setPending(id: string, sessionId: string, url: string) {
-  const res = await pool.query<RequestRow>(
-    `UPDATE requests
-       SET status='pending', session_id=$2, checkout_url=$3, updated_at=now()
-     WHERE id=$1
-     RETURNING *`,
-    [id, sessionId, url]
+  // уже есть активная — вернём её
+  const existing = await findActive(String(opts.chatId), opts.plan, opts.plate, opts.invoice);
+  if (existing) return { created: false as const, row: existing };
+
+  // редкий случай гонки — берём самую свежую вообще
+  const q = await pool.query(
+    `SELECT * FROM requests
+     WHERE chat_id=$1 AND plan_label=$2 AND plate=$3 AND invoice=$4
+     ORDER BY created_at DESC LIMIT 1`,
+    [String(opts.chatId), opts.plan, norm(opts.plate), norm(opts.invoice)]
   );
-  return res.rows[0];
+  return { created: false as const, row: (q.rows[0] as RequestRow) || (ins.rows[0] as RequestRow) };
 }
 
-export async function setCompletedById(id: string) {
-  const res = await pool.query<RequestRow>(
+/** Обновить запись в pending после успешного создания сессии */
+export async function setPending(id: string, sessionId: string, payUrl: string, totalUsd?: number) {
+  await pool.query(
     `UPDATE requests
-       SET status='completed', updated_at=now()
-     WHERE id=$1
-     RETURNING *`,
-    [id]
+     SET status='pending',
+         session_id=$2,
+         pay_url=$3,
+         total_usd=COALESCE($4,total_usd),
+         updated_at=now()
+     WHERE id=$1`,
+    [id, sessionId, payUrl, totalUsd ?? null]
   );
-  return res.rows[0];
 }
 
-export async function setDeclinedById(id: string, reason?: string) {
-  const res = await pool.query<RequestRow>(
+/** Пометить как completed по sessionId (основной путь) */
+export async function setCompletedBySession(sessionId: string) {
+  await pool.query(
     `UPDATE requests
-       SET status='declined', decline_reason=$2, updated_at=now()
-     WHERE id=$1
-     RETURNING *`,
-    [id, reason || null]
+     SET status='completed', updated_at=now()
+     WHERE session_id=$1`,
+    [sessionId]
   );
-  return res.rows[0];
 }
 
-export { pool };
+/** Резервный путь — завершить самую свежую «активную» по ключу */
+export async function setCompletedFallback(opts: {
+  chatId: string | number;
+  plan: PlanLabel;
+  plate: string;
+  invoice: string;
+}) {
+  await pool.query(
+    `UPDATE requests
+     SET status='completed', updated_at=now()
+     WHERE id IN (
+       SELECT id FROM requests
+       WHERE chat_id=$1 AND plan_label=$2 AND plate=$3 AND invoice=$4
+         AND status <> 'completed'
+       ORDER BY created_at DESC
+       LIMIT 1
+     )`,
+    [String(opts.chatId), opts.plan, norm(opts.plate), norm(opts.invoice)]
+  );
+}
