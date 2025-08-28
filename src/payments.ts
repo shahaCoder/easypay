@@ -1,4 +1,3 @@
-// src/payments.ts
 import Stripe from "stripe";
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
@@ -8,17 +7,13 @@ export const stripe = new Stripe(STRIPE_SECRET_KEY);
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 
 /* ================== fees & plans ================== */
-// «Прочие расходы» (other fees): 2.5% + $0.50 от суммы списания
 function otherFees(amountUsd: number): number {
   const v = amountUsd * 0.025 + 0.5;
   return Math.round(v * 100) / 100;
 }
+function round2(x: number) { return Math.round(x * 100) / 100; }
 
-function round2(x: number) {
-  return Math.round(x * 100) / 100;
-}
-
-// План 1: прямой платёж (service = $10)
+// 1) прямой
 export function calcPlan1(T: number) {
   const service = 10;
   const subtotal = T + service;
@@ -27,13 +22,12 @@ export function calcPlan1(T: number) {
   return { service, fees, total };
 }
 
-// План 2: скидка 10% (service = $15, но не допускаем «минус» для клиента)
+// 2) со скидкой 10% (и не уходим «в минус»)
 export function calcPlan2(T: number, baseService = 15) {
   const allowed = T >= 70;
-  const discounted = round2(T * 0.9); // минимальная скидка 10%
+  const discounted = round2(T * 0.9);
   let service = baseService;
 
-  // подберём service так, чтобы total <= T (если иначе клиент «уходит в минус»)
   const totalWith = (svc: number) => {
     const subtotal = discounted + svc;
     const fees = otherFees(subtotal);
@@ -44,25 +38,13 @@ export function calcPlan2(T: number, baseService = 15) {
   let serviceReduced = false;
 
   if (total > T) {
-    // уменьшаем service до тех пор, пока total <= T (шаг 0.01)
     serviceReduced = true;
     let svc = service;
     for (let i = 0; i < 2000 && svc > 0; i++) {
       svc = round2(svc - 0.01);
       const r = totalWith(svc);
-      if (r.total <= T) {
-        service = svc;
-        fees = r.fees;
-        total = r.total;
-        break;
-      }
-      // если не нашли — в конце примем нулевой сервис
-      if (i === 1999) {
-        service = 0;
-        const r2 = totalWith(service);
-        fees = r2.fees;
-        total = r2.total;
-      }
+      if (r.total <= T) { service = svc; fees = r.fees; total = r.total; break; }
+      if (i === 1999) { service = 0; const r2 = totalWith(service); fees = r2.fees; total = r2.total; }
     }
   }
 
@@ -83,14 +65,10 @@ export type CreateCheckoutArgs = {
   invoice: string;
   ezpassState?: string;
   ezpassAccount?: string;
-  /** id записи в БД для связывания в webhook */
-  reqId?: string;
-  reqKey?: string;
+  reqId?: string;   // если решишь прокидывать
+  reqKey?: string;  // сейчас используешь его — ок
 };
-
-export type CreateCheckoutOpts = {
-  idempotencyKey?: string;
-};
+export type CreateCheckoutOpts = { idempotencyKey?: string };
 
 export async function createTotalCheckout(
   args: CreateCheckoutArgs,
@@ -121,7 +99,6 @@ export async function createTotalCheckout(
         },
       ],
       metadata: {
-        // обязательно строки
         planLabel: args.planLabel,
         totalUsd: String(args.totalUsd),
         tollUsd: String(args.tollUsd),
@@ -137,7 +114,6 @@ export async function createTotalCheckout(
         ezpassState: args.ezpassState || "",
         ezpassAccount: args.ezpassAccount || "",
 
-        // новый ключ для server.ts
         reqKey: args.reqKey || "",
       },
     },

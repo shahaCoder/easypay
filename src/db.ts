@@ -36,6 +36,7 @@ export type RequestRow = {
   session_id: string | null;
   created_at: string;
   updated_at: string;
+  plan: string
 };
 
 const norm = (s: string) =>
