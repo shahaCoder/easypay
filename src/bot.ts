@@ -66,16 +66,16 @@ const t = {
     found_items_title: "🥳 Topilgan hisoblar:",
     start_hint:
       "Ma’lumot kiritish uchun «E-ZPass to‘lash» tugmasini bosing.",
-    start_main: "E-ZPass to‘lash",
-    help: "Yordam",
-    history: "Buyurtmalar tarixi",
+    start_main: "E-ZPass to‘lash 💳",
+    help: "Yordam 👨‍💻",
+    history: "Buyurtmalar tarixi 📚",
     hist_none: "Hali buyurtmalar yo‘q.",
     plan1_btn: "1) To‘g‘ridan-to‘g‘ri to‘lov",
     plan2_btn: "2) Chegirma bilan",
     ask_ezpass_acc:
-      "*E-ZPass account number* ni kiriting (masalan, *99999999*). Chegirma varianti uchun majburiy.",
+      "*E-ZPass account number* ni kiriting (masalan, *01900300545*). Chegirma varianti uchun majburiy.",
     ezpass_acc_invalid:
-      "E-ZPass hisob raqami noto‘g‘ri. Iltimos, *6–12* raqam kiriting. Masalan: *99999999*.",
+      "E-ZPass hisob raqami noto‘g‘ri. Iltimos, *11* raqam kiriting. Masalan: *01900300545*.",
 
     dup_creating_title:
       "Ushbu ma’lumotlar bo‘yicha ariza yaratilmoqda… ⏳",
