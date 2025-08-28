@@ -27,19 +27,19 @@ const t = {
     invoice_invalid:
       "Номер инвойса/нарушения выглядит странно. Пример: *T062549136462*.",
     checking: "Проверяю по базе NJ E-ZPass… ⏳",
-    not_found: "Начисления не найдены.\n\n",
-    found_items_title: "Найдено начислений:",
+    not_found: "Начисления не найдены. 🤷‍♂️\n\n",
+    found_items_title: "🥳 Найдено начислений:",
     start_hint: "Нажми «Оплатить E-ZPass», чтобы ввести данные.",
-    start_main: "Оплатить E-ZPass",
-    help: "Техподдержка",
-    history: "История заявок",
+    start_main: "Оплатить E-ZPass 💳",
+    help: "Техподдержка 👨‍💻",
+    history: "История заявок 📚",
     hist_none: "У вас пока нет заявок.",
     plan1_btn: "1) Прямая оплата",
     plan2_btn: "2) Со скидкой",
     ask_ezpass_acc:
-      "Введите *E-ZPass account number* (например, *99999999*). Обязательно для варианта со скидкой.",
+      "Введите *E-ZPass account number* (например, *01900300545*). Обязательно для варианта со скидкой.",
     ezpass_acc_invalid:
-      "Номер аккаунта E-ZPass выглядит странно. Введите от *6* до *12* цифр. Пример: *99999999*.",
+      "Номер аккаунта E-ZPass выглядит странно. Введите *11* цифр. Пример: *01900300545*.",
 
     dup_creating_title: "Заявка по этим данным уже создаётся… ⏳",
     dup_creating_hint:
@@ -62,8 +62,8 @@ const t = {
     invoice_invalid:
       "Invoice/Violation raqami noto‘g‘ri. Namuna: *T062549136462*.",
     checking: "NJ E-ZPass bazasida tekshiryapman… ⏳",
-    not_found: "Hisoblar topilmadi.\n\n",
-    found_items_title: "Topilgan hisoblar:",
+    not_found: "Hisoblar topilmadi. 🤷‍♂️\n\n",
+    found_items_title: "🥳 Topilgan hisoblar:",
     start_hint:
       "Ma’lumot kiritish uchun «E-ZPass to‘lash» tugmasini bosing.",
     start_main: "E-ZPass to‘lash",
@@ -308,8 +308,8 @@ export function createBot(token: string) {
     const name = ctx.from?.first_name || "";
     const text =
       s.lang === "ru"
-        ? `Привет, ${name}!\n\n☎️ +1 999 999 99 99\n🔹 @easypayusasupport\n✉️ example@easypayusasupport.com\n\nНажми «Оплатить E-ZPass», чтобы начать.`
-        : `Salom, ${name}!\n\n☎️ +1 999 999 99 99\n🔹 @easypayusasupport\n✉️ example@easypayusasupport.com\n\nBoshlash uchun «E-ZPass to‘lash» tugmasini bosing.`;
+        ? `Привет, ${name}!\n\n☎️ +1 305 744 1538\n🔹 @easypayusasupport\n✉️ example@easypayusasupport.com\n\nНажми «Оплатить E-ZPass», чтобы начать.`
+        : `Salom, ${name}!\n\n☎️ ++1 305 744 1538\n🔹 @easypayusasupport\n✉️ example@easypayusasupport.com\n\nBoshlash uchun «E-ZPass to‘lash» tugmasini bosing.`;
     await ctx.reply(text, kbStart(s.lang));
   });
 
@@ -325,15 +325,15 @@ export function createBot(token: string) {
     const status =
       r.status === "pending"
         ? lang === "ru"
-          ? "ожидает оплаты"
-          : "to‘lov kutilmoqda"
+          ? "Ожидает оплаты ♻️"
+          : "To‘lov kutilmoqda ♻️"
         : r.status === "completed"
         ? lang === "ru"
-          ? "оплачено"
-          : "to‘langan"
+          ? "Оплачено ✅"
+          : "To‘langan ✅"
         : lang === "ru"
-        ? "создаётся"
-        : "yaratilmoqda";
+        ? "Создаётся ♻️"
+        : "Yaratilmoqda ♻️";
     return [
       `#${String(r.id).slice(0, 8)} — ${header}`,
       `Plate: ${r.plate} | Invoice: ${r.invoice}`,
@@ -424,10 +424,10 @@ export function createBot(token: string) {
               lang === "ru"
                 ? ex.status === "completed"
                   ? "Если нужно повторить — измените данные (например, другой инвойс) или напишите в поддержку."
-                  : "Если вы ещё не оплатили, откройте ссылку ниже и завершите платёж:"
+                  : ""
                 : ex.status === "completed"
                 ? "Qayta to‘lash uchun ma’lumotlarni o‘zgartiring (masalan, boshqa invoice) yoki yordamga yozing."
-                : "Agar to‘lovni yakunlamagan bo‘lsangiz, quyidagi havola orqali davom eting:";
+                : "";
 
             const lines = [
               `${title}\n`,
