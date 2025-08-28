@@ -53,8 +53,6 @@ const t = {
     lang_btn: "🌐 Сменить язык",
   },
   uz: {
-    choose_lang_title: "Tilni tanlang va davom eting!",
-    choose_lang_sub: "Botdan foydalanish uchun tilni tanlang!",
     start_prompt:
       "Ma’lumotlarni yuboring — hisoblarni tekshiraman va umumiy summani chiqaraman.\nQuyidagi tugmani bosing 👇",
     ask_plate: "*Plate number* (avto raqami) ni kiriting:",
@@ -257,7 +255,7 @@ export function createBot(token: string) {
   bot.command("restart", async (ctx) => {
     sessions.delete(ctx.chat!.id);
     await ctx.reply(
-      `${t.ru.choose_lang_title}\n${t.ru.choose_lang_sub}\n\n${t.uz.choose_lang_title}\n${t.uz.choose_lang_sub}`,
+      `${t.ru.choose_lang_title}\n${t.ru.choose_lang_sub}\n\n`,
       kbLang
     );
   });
@@ -265,14 +263,14 @@ export function createBot(token: string) {
   // смена языка — где угодно
   bot.command("lang", async (ctx) => {
     await ctx.reply(
-      `${t.ru.choose_lang_title}\n${t.ru.choose_lang_sub}\n\n${t.uz.choose_lang_title}\n${t.uz.choose_lang_sub}`,
+      `${t.ru.choose_lang_title}\n${t.ru.choose_lang_sub}\n\n`,
       kbLang
     );
   });
   bot.action("choose_lang", async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
     await ctx.reply(
-      `${t.ru.choose_lang_title}\n${t.ru.choose_lang_sub}\n\n${t.uz.choose_lang_title}\n${t.uz.choose_lang_sub}`,
+      `${t.ru.choose_lang_title}\n${t.ru.choose_lang_sub}\n\n`,
       kbLang
     );
   });
@@ -282,7 +280,7 @@ export function createBot(token: string) {
     const s = ses(ctx.chat!.id);
     s.step = "lang";
     await ctx.reply(
-      `${t.ru.choose_lang_title}\n${t.ru.choose_lang_sub}\n\n${t.uz.choose_lang_title}\n${t.uz.choose_lang_sub}`,
+      `${t.ru.choose_lang_title}\n${t.ru.choose_lang_sub}\n\n`,
       kbLang
     );
   });
