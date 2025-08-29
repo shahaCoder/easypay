@@ -115,13 +115,7 @@ const t = {
   },
 };
 
-type Step =
-  | "lang"
-  | "idle"
-  | "await_plate"
-  | "await_invoice"
-  | "await_ezpass_account";
-
+type Step = "lang" | "idle" | "await_plate" | "await_invoice" | "await_ezpass_account";
 type PayScope = "total" | "single";
 
 type Session = {
@@ -145,10 +139,7 @@ const ses = (id: number): Session => {
 };
 
 const kbLang = Markup.inlineKeyboard([
-  [
-    Markup.button.callback("Русский 🇷🇺", "lang_ru"),
-    Markup.button.callback("O‘zbekcha 🇺🇿", "lang_uz"),
-  ],
+  [Markup.button.callback("Русский 🇷🇺", "lang_ru"), Markup.button.callback("O‘zbekcha 🇺🇿", "lang_uz")],
 ]);
 
 const kbStart = (lang: Lang) =>
@@ -159,21 +150,13 @@ const kbStart = (lang: Lang) =>
     [Markup.button.callback(lang === "ru" ? t.ru.lang_btn : t.uz.lang_btn, "choose_lang")],
   ]);
 
-/* ============== утилиты форматирования ============== */
+/* ============== форматирование ============== */
 const planTitle = (lang: Lang, plan: PlanLabel) =>
-  lang === "ru"
-    ? plan === "plan2_discount"
-      ? "2 (со скидкой)"
-      : "1 (прямая)"
-    : plan === "plan2_discount"
-    ? "2 (chegirma bilan)"
-    : "1 (to‘g‘ridan-to‘g‘ri)";
-
+  lang === "ru" ? (plan === "plan2_discount" ? "2 (со скидкой)" : "1 (прямая)") : plan === "plan2_discount" ? "2 (chegirma bilan)" : "1 (to‘g‘ridan-to‘g‘ri)";
 const money = (x: number) => `$${Number(x || 0).toFixed(2)}`;
 const middleEllipsis = (s: string, left = 6, right = 4) =>
   s.length <= left + right + 1 ? s : `${s.slice(0, left)}…${s.slice(-right)}`;
-const invBtnLabel = (it: NjItem) =>
-  `💵 ${money(it.amountDue)} · #${middleEllipsis(it.noticeNumber || "—")}`;
+const invBtnLabel = (it: NjItem) => `💵 ${money(it.amountDue)} — #${middleEllipsis(it.noticeNumber || "—")}`; // СУММА СЛЕВА
 
 /* ============== текст расчётов ============== */
 function buildPlansText(
@@ -182,12 +165,7 @@ function buildPlansText(
   p1: { service: number; fees: number; total: number },
   p2: { allowed: boolean; discounted: number; service: number; serviceReduced?: boolean; fees: number; total: number }
 ) {
-  if (T <= 0) {
-    return lang === "ru"
-      ? "По базе нет начислений — платить нечего."
-      : "Bazaga ko‘ra hech qanday to‘lov yo‘q — to‘lash shart emas.";
-  }
-
+  if (T <= 0) return lang === "ru" ? "По базе нет начислений — платить нечего." : "Bazaga ko‘ra hech qanday to‘lov yo‘q — to‘lash shart emas.";
   if (lang === "uz") {
     let s = "";
     s += `Bazadagi jami: *$${T.toFixed(2)}*\n\n`;
@@ -198,7 +176,6 @@ function buildPlansText(
     s += `Boshqa xarajatlar — *$${p1.fees.toFixed(2)}*\n`;
     s += `Jami — *$${p1.total.toFixed(2)}*\n\n`;
     s += `❗️❗️❗️ *MUHIM:* 1-variantda bajarilish muddati *6 ish soatigacha*. ❗️❗️❗️\n\n`;
-
     if (p2.allowed) {
       s += `*2-variant — minimal 10% chegirma beriladi.* (Chegirma kattaroq bo‘lishi mumkin; farq kartangizga qaytariladi.)\n`;
       s += `Toll to‘lovi — *$${p2.discounted.toFixed(2)}*\n`;
@@ -212,7 +189,6 @@ function buildPlansText(
     s += `Quyida xizmatni tanlang 👇🏻`;
     return s;
   }
-
   let s = "";
   s += `Итого по базе найдено: *$${T.toFixed(2)}*\n\n`;
   s += `У нас имеются 2 вида услуг.\n\n`;
@@ -222,7 +198,6 @@ function buildPlansText(
   s += `Остальные расходы - *$${p1.fees.toFixed(2)}*\n`;
   s += `Тотал - *$${p1.total.toFixed(2)}*\n\n`;
   s += `❗️❗️❗️ ВАЖНО ПРИ ВЫБОРЕ 1-ГО ВАРИАНТА СРОК ДОСТАВКИ ДО *6 РАБОЧИХ ЧАСОВ* ❗️❗️❗️\n\n`;
-
   if (p2.allowed) {
     s += `*2-ой вид - выдается минимальная скидка в размере 10%.* (скидка может быть выше, остаток мы вернём на вашу карту.)\n`;
     s += `Плата за толл - *$${p2.discounted.toFixed(2)}*\n`;
@@ -245,7 +220,7 @@ async function findDuplicateAnyPlan(chatId: number, plate: string, invoice: stri
   return b || null;
 }
 
-/* Рендер «предыдущего меню» из кэша (без повторной проверки NJ) */
+/* Предыдущее меню из кэша (без повторной проверки NJ) */
 async function sendPlansMenu(ctx: any) {
   const S = ses(ctx.chat!.id);
   const lang = S.lang;
@@ -261,35 +236,27 @@ async function sendPlansMenu(ctx: any) {
   const p1 = calcPlan1(T);
   const p2 = calcPlan2(T, 15);
 
-  const header = lines.length
-    ? lines.join("\n") + "\n\n"
-    : lang === "ru"
-    ? t.ru.not_found
-    : t.uz.not_found;
+  const header = lines.length ? lines.join("\n") + "\n\n" : lang === "ru" ? t.ru.not_found : t.uz.not_found;
   const body = buildPlansText(lang, T, p1, p2);
 
-  const buttons: any[] = [
-    [Markup.button.callback(lang === "ru" ? t.ru.lang_btn : t.uz.lang_btn, "choose_lang")],
-  ];
+  const buttons: any[] = [[Markup.button.callback(lang === "ru" ? t.ru.lang_btn : t.uz.lang_btn, "choose_lang")]];
   if (T > 0) {
-    // порядок: 1) прямая, 2) скидка, 3) один инвойс
-    buttons.unshift([
-      Markup.button.callback(lang === "ru" ? t.ru.pay_one_btn : t.uz.pay_one_btn, "pay_one"),
-    ]);
-    if (p2.allowed)
-      buttons.unshift([Markup.button.callback(lang === "ru" ? t.ru.plan2_btn : t.uz.plan2_btn, "pay_plan2")]);
+    buttons.unshift([Markup.button.callback(lang === "ru" ? t.ru.pay_one_btn : t.uz.pay_one_btn, "pay_one")]);
+    if (p2.allowed) buttons.unshift([Markup.button.callback(lang === "ru" ? t.ru.plan2_btn : t.uz.plan2_btn, "pay_plan2")]);
     buttons.unshift([Markup.button.callback(lang === "ru" ? t.ru.plan1_btn : t.uz.plan1_btn, "pay_plan1")]);
   }
 
-  await ctx.reply(header + body, {
-    parse_mode: "Markdown",
-    reply_markup: Markup.inlineKeyboard(buttons).reply_markup,
-  });
+  await ctx.reply(header + body, { parse_mode: "Markdown", reply_markup: Markup.inlineKeyboard(buttons).reply_markup });
 }
 
 /* ================== bot ================== */
 export function createBot(token: string) {
   const bot = new Telegraf(token);
+
+  // для быстрой проверки, что крутится новый билд
+  bot.command("version", async (ctx) => {
+    await ctx.reply(`ezpass-bot build @ ${new Date().toISOString()}`);
+  });
 
   bot.catch(async (err, ctx) => {
     console.error("Telegraf error:", err);
@@ -333,28 +300,22 @@ export function createBot(token: string) {
     await ctx.answerCbQuery().catch(() => {});
     const s = ses(ctx.chat!.id);
     const name = ctx.from?.first_name || "";
-    const text = s.lang === "ru"
-      ? `Привет, ${name}!\n\n☎️ +1 305 744 1538\n🔹 @easypayusasupport\n✉️ example@easypayusasupport.com\n\nНажми «Оплатить E-ZPass», чтобы начать.`
-      : `Salom, ${name}!\n\n☎️ +1 305 744 1538\n🔹 @easypayusasupport\n✉️ example@easypayusasupport.com\n\nBoshlash uchun «E-ZPass to‘lash» tugmasini bosing.`;
+    const text =
+      s.lang === "ru"
+        ? `Привет, ${name}!\n\n☎️ +1 305 744 1538\n🔹 @easypayusasupport\n✉️ example@easypayusasupport.com\n\nНажми «Оплатить E-ZPass», чтобы начать.`
+        : `Salom, ${name}!\n\n☎️ +1 305 744 1538\n🔹 @easypayusasupport\n✉️ example@easypayusasupport.com\n\nBoshlash uchun «E-ZPass to‘lash» tugmasini bosing.`;
     await ctx.reply(text, kbStart(s.lang));
   });
 
   // история
   const num = (x: any) => Number(x ?? 0);
   const histItem = (lang: Lang, r: any) => {
-    const header = lang === "ru"
-      ? `План: ${r.plan_label === "plan1_direct" ? "Прямая" : "Со скидкой"}`
-      : `Reja: ${r.plan_label === "plan1_direct" ? "To‘g‘ridan-to‘g‘ri" : "Chegirma bilan"}`;
+    const header = lang === "ru" ? `План: ${r.plan_label === "plan1_direct" ? "Прямая" : "Со скидкой"}` : `Reja: ${r.plan_label === "plan1_direct" ? "To‘g‘ridan-to‘g‘ri" : "Chegirma bilan"}`;
     const status =
       r.status === "pending" ? (lang === "ru" ? "Ожидает оплаты ♻️" : "To‘lov kutilmoqda ♻️")
       : r.status === "completed" ? (lang === "ru" ? "Оплачено ✅" : "To‘langan ✅")
       : (lang === "ru" ? "Создаётся ♻️" : "Yaratilmoqda ♻️");
-    return [
-      `#${String(r.id).slice(0, 8)} — ${header}`,
-      `Plate: ${r.plate} | Invoice: ${r.invoice}`,
-      `Статус: ${status}`,
-      `Сумма: $${num(r.total_usd).toFixed(2)}`,
-    ].join("\n");
+    return [`#${String(r.id).slice(0, 8)} — ${header}`, `Plate: ${r.plate} | Invoice: ${r.invoice}`, `Статус: ${status}`, `Сумма: $${num(r.total_usd).toFixed(2)}`].join("\n");
   };
 
   bot.action("history", async (ctx) => {
@@ -379,7 +340,7 @@ export function createBot(token: string) {
     await ctx.reply(s.lang === "ru" ? t.ru.ask_plate : t.uz.ask_plate, { parse_mode: "Markdown" });
   });
 
-  // возврат к меню планов без повторной проверки
+  // назад к меню планов (без повторной проверки)
   bot.action("back_menu", async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
     await sendPlansMenu(ctx);
@@ -431,20 +392,12 @@ export function createBot(token: string) {
                 ? "Qayta to‘lash uchun ma’lumotlarni o‘zgartiring (masalan, boshqa invoice) yoki yordamga yozing."
                 : "";
 
-            const lines = [
-              `${title}\n`,
-              `Plate: *${ex.plate}*  |  Invoice: *${ex.invoice}*`,
-              `Plan: *${planTitle(lang, exPlan)}*`,
-              `Summa: *$${Number(ex.total_usd || 0).toFixed(2)}*`,
-              `\n${hint}`,
-            ].join("\n");
+            const lines = [`${title}\n`, `Plate: *${ex.plate}*  |  Invoice: *${ex.invoice}*`, `Plan: *${planTitle(lang, exPlan)}*`, `Summa: *$${Number(ex.total_usd || 0).toFixed(2)}*`, `\n${hint}`].join("\n");
 
             if (ex.status !== "completed" && ex.pay_url) {
               await ctx.reply(lines, {
                 parse_mode: "Markdown",
-                reply_markup: Markup.inlineKeyboard([
-                  [Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", ex.pay_url)],
-                ]).reply_markup,
+                reply_markup: Markup.inlineKeyboard([[Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", ex.pay_url)]]).reply_markup,
               });
             } else {
               await ctx.reply(lines, { parse_mode: "Markdown" });
@@ -464,12 +417,7 @@ export function createBot(token: string) {
         res = await checkEzpassNJ({ invoiceNumber: S.invoice!, plate: S.plate! });
       } catch (e) {
         console.error("checkEzpassNJ error:", e);
-        return ctx.reply(
-          lang === "ru"
-            ? "Сервис проверки временно недоступен. Попробуйте позже или напишите в поддержку."
-            : "Tekshiruv xizmati vaqtincha mavjud emas. Birozdan so‘ng urinib ko‘ring yoki yordamga yozing.",
-          kbStart(lang)
-        );
+        return ctx.reply(lang === "ru" ? "Сервис проверки временно недоступен. Попробуйте позже или напишите в поддержку." : "Tekshiruv xizmati vaqtincha mavjud emas. Birozdan so‘ng urinib ko‘ring yoki yordamga yozing.", kbStart(lang));
       }
 
       S.lastTotal = +(res?.total || 0).toFixed(2);
@@ -511,9 +459,7 @@ export function createBot(token: string) {
               (lang === "ru" ? t.ru.dup_pending_hint : t.uz.dup_pending_hint);
             return ctx.reply(txt, {
               parse_mode: "Markdown",
-              reply_markup: Markup.inlineKeyboard([
-                [Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", row.pay_url)],
-              ]).reply_markup,
+              reply_markup: Markup.inlineKeyboard([[Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", row.pay_url)]]).reply_markup,
             });
           }
           if (row.status === "completed") {
@@ -524,10 +470,7 @@ export function createBot(token: string) {
               (lang === "ru" ? t.ru.dup_done_hint : t.uz.dup_done_hint);
             return ctx.reply(txt, { parse_mode: "Markdown" });
           }
-          const txt =
-            (lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) +
-            `\n\n` +
-            (lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
+          const txt = (lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) + `\n\n` + (lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
           return ctx.reply(txt, { parse_mode: "Markdown" });
         }
 
@@ -546,18 +489,14 @@ export function createBot(token: string) {
             ezpassState: "New Jersey",
             ezpassAccount: S.ezpassAccount || "",
           },
-          {
-            idempotencyKey: `G:${ctx.chat!.id}:p2:one:${(S.plate || "").toUpperCase()}:${(item?.noticeNumber || S.invoice || "").toUpperCase()}`,
-          }
+          { idempotencyKey: `G:${ctx.chat!.id}:p2:one:${(S.plate || "").toUpperCase()}:${(item?.noticeNumber || S.invoice || "").toUpperCase()}` }
         );
 
         await setPending(row.id, id, url, p2.total);
 
         return ctx.reply((lang === "ru" ? t.ru.pay_now : t.uz.pay_now)(p2.total), {
           parse_mode: "Markdown",
-          reply_markup: Markup.inlineKeyboard([
-            [Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", url)],
-          ]).reply_markup,
+          reply_markup: Markup.inlineKeyboard([[Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", url)]]).reply_markup,
         });
       } else {
         // === стандартный P2 (total)
@@ -582,9 +521,7 @@ export function createBot(token: string) {
               (lang === "ru" ? t.ru.dup_pending_hint : t.uz.dup_pending_hint);
             return ctx.reply(txt, {
               parse_mode: "Markdown",
-              reply_markup: Markup.inlineKeyboard([
-                [Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", row.pay_url)],
-              ]).reply_markup,
+              reply_markup: Markup.inlineKeyboard([[Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", row.pay_url)]]).reply_markup,
             });
           }
           if (row.status === "completed") {
@@ -595,10 +532,7 @@ export function createBot(token: string) {
               (lang === "ru" ? t.ru.dup_done_hint : t.uz.dup_done_hint);
             return ctx.reply(txt, { parse_mode: "Markdown" });
           }
-          const txt =
-            (lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) +
-            `\n\n` +
-            (lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
+          const txt = (lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) + `\n\n` + (lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
           return ctx.reply(txt, { parse_mode: "Markdown" });
         }
 
@@ -617,18 +551,14 @@ export function createBot(token: string) {
             ezpassState: "New Jersey",
             ezpassAccount: S.ezpassAccount || "",
           },
-          {
-            idempotencyKey: `G:${ctx.chat!.id}:p2:${(S.plate || "").toUpperCase()}:${(S.invoice || "").toUpperCase()}`,
-          }
+          { idempotencyKey: `G:${ctx.chat!.id}:p2:${(S.plate || "").toUpperCase()}:${(S.invoice || "").toUpperCase()}` }
         );
 
         await setPending(row.id, id, url, p2.total);
 
         return ctx.reply((lang === "ru" ? t.ru.pay_now : t.uz.pay_now)(p2.total), {
           parse_mode: "Markdown",
-          reply_markup: Markup.inlineKeyboard([
-            [Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", url)],
-          ]).reply_markup,
+          reply_markup: Markup.inlineKeyboard([[Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", url)]]).reply_markup,
         });
       }
     }
@@ -639,65 +569,70 @@ export function createBot(token: string) {
   /* ====== ПЛАТЁЖ ЗА ОДИН ИНВОЙС: список ====== */
   bot.action("pay_one", async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
-    const S = ses(ctx.chat!.id);
-    const lang = S.lang;
-    if (!S.items?.length) {
-      return ctx.reply(lang === "ru" ? "Список инвойсов пуст." : "Invoyslar ro‘yxati bo‘sh.");
+    try {
+      const S = ses(ctx.chat!.id);
+      const lang = S.lang;
+      if (!S.items?.length) {
+        return ctx.reply(lang === "ru" ? "Список инвойсов пуст." : "Invoyslar ro‘yxati bo‘sh.");
+      }
+
+      // одна кнопка в строке, сумма слева
+      const rows: any[] = [];
+      S.items.forEach((it, idx) => rows.push([Markup.button.callback(invBtnLabel(it), `one_${idx}`)]));
+      rows.push([Markup.button.callback(lang === "ru" ? t.ru.back_btn : t.uz.back_btn, "back_menu")]);
+
+      await ctx.reply(lang === "ru" ? t.ru.choose_one_title : t.uz.choose_one_title, {
+        reply_markup: Markup.inlineKeyboard(rows).reply_markup,
+      });
+    } catch (e) {
+      console.error("pay_one error:", e);
+      await ctx.reply("Не удалось отобразить список инвойсов. Попробуйте ещё раз.");
     }
-
-    // одна кнопка в строке, сумма слева — чтобы на телефонах всегда была видна
-    const rows: any[] = [];
-    S.items.forEach((it, idx) => rows.push([Markup.button.callback(invBtnLabel(it), `one_${idx}`)]));
-    rows.push([Markup.button.callback(lang === "ru" ? t.ru.back_btn : t.uz.back_btn, "back_menu")]);
-
-    await ctx.reply(lang === "ru" ? t.ru.choose_one_title : t.uz.choose_one_title, {
-      reply_markup: Markup.inlineKeyboard(rows).reply_markup,
-    });
   });
 
   /* ====== выбор одного инвойса → выбор плана ====== */
   bot.action(/^one_(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
-    const S = ses(ctx.chat!.id);
-    const lang = S.lang;
+    try {
+      const S = ses(ctx.chat!.id);
+      const lang = S.lang;
 
-    const data = (ctx.callbackQuery as any)?.data ?? "";
-    const m = /^one_(\d+)$/.exec(data);
-    const idx = m ? Number(m[1]) : -1;
+      const data = (ctx.callbackQuery as any)?.data ?? "";
+      const m = /^one_(\d+)$/.exec(data);
+      const idx = m ? Number(m[1]) : -1;
 
-    if (!Array.isArray(S.items) || idx < 0 || idx >= S.items.length) {
-      return ctx.reply(
+      if (!Array.isArray(S.items) || idx < 0 || idx >= S.items.length) {
+        return ctx.reply(
+          lang === "ru"
+            ? "Список инвойсов устарел. Нажмите «Оплатить один инвойс» ещё раз."
+            : "Invoyslar ro‘yxati eskirgan. «Bitta invoysni to‘lash» tugmasini bosib qaytaring."
+        );
+      }
+      S.singleIndex = idx;
+      S.scope = "single";
+
+      const item = S.items[idx];
+      const p2 = calcPlan2(+item.amountDue.toFixed(2), 15);
+
+      const buttons: any[] = [];
+      buttons.push([Markup.button.callback(lang === "ru" ? t.ru.pay_one_p1_btn : t.uz.pay_one_p1_btn, `one_p1_${idx}`)]);
+      if (p2.allowed) {
+        buttons.push([Markup.button.callback(lang === "ru" ? t.ru.pay_one_p2_btn : t.uz.pay_one_p2_btn, `one_p2_${idx}`)]);
+      } else {
+        buttons.push([Markup.button.callback(lang === "ru" ? `${t.ru.pay_one_p2_btn} (недоступно < $70)` : `${t.uz.pay_one_p2_btn} (>$70)`, "noop")]);
+      }
+      buttons.push([Markup.button.callback(lang === "ru" ? t.ru.back_btn : t.uz.back_btn, "pay_one")]);
+
+      const title =
         lang === "ru"
-          ? "Список инвойсов устарел. Нажмите «Оплатить один инвойс» ещё раз."
-          : "Invoyslar ro‘yxati eskirgan. «Bitta invoysni to‘lash» tugmasini bosib qaytaring."
-      );
+          ? `Выбран инвойс: *${item.noticeNumber || "—"}* на сумму *${money(item.amountDue)}*`
+          : `Tanlangan invoys: *${item.noticeNumber || "—"}* — *${money(item.amountDue)}*`;
+
+      await ctx.reply(title, { parse_mode: "Markdown", reply_markup: Markup.inlineKeyboard(buttons).reply_markup });
+    } catch (e) {
+      console.error("one_(i) error:", e);
+      await ctx.reply("Не удалось открыть выбор плана. Попробуйте ещё раз «Оплатить один инвойс».");
     }
-    S.singleIndex = idx;
-    S.scope = "single";
-
-    const item = S.items[idx];
-    const p2 = calcPlan2(+item.amountDue.toFixed(2), 15);
-
-    const buttons: any[] = [];
-    buttons.push([Markup.button.callback(lang === "ru" ? t.ru.pay_one_p1_btn : t.uz.pay_one_p1_btn, `one_p1_${idx}`)]);
-    if (p2.allowed) {
-      buttons.push([Markup.button.callback(lang === "ru" ? t.ru.pay_one_p2_btn : t.uz.pay_one_p2_btn, `one_p2_${idx}`)]);
-    } else {
-      buttons.push([
-        Markup.button.callback(
-          lang === "ru" ? `${t.ru.pay_one_p2_btn} (недоступно < $70)` : `${t.uz.pay_one_p2_btn} (>$70)`,
-          "noop"
-        ),
-      ]);
-    }
-    buttons.push([Markup.button.callback(lang === "ru" ? t.ru.back_btn : t.uz.back_btn, "pay_one")]);
-
-    const title =
-      lang === "ru"
-        ? `Выбран инвойс: *${item.noticeNumber || "—"}* на сумму *${money(item.amountDue)}*`
-        : `Tanlangan invoys: *${item.noticeNumber || "—"}* — *${money(item.amountDue)}*`;
-
-    await ctx.reply(title, { parse_mode: "Markdown", reply_markup: Markup.inlineKeyboard(buttons).reply_markup });
   });
 
   bot.action("noop", async (ctx) => { await ctx.answerCbQuery().catch(() => {}); });
@@ -736,9 +671,7 @@ export function createBot(token: string) {
           (lang === "ru" ? t.ru.dup_pending_hint : t.uz.dup_pending_hint);
         return ctx.reply(txt, {
           parse_mode: "Markdown",
-          reply_markup: Markup.inlineKeyboard([
-            [Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", row.pay_url)],
-          ]).reply_markup,
+          reply_markup: Markup.inlineKeyboard([[Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", row.pay_url)]]).reply_markup,
         });
       }
       if (row.status === "completed") {
@@ -749,8 +682,7 @@ export function createBot(token: string) {
           (lang === "ru" ? t.ru.dup_done_hint : t.uz.dup_done_hint);
         return ctx.reply(txt, { parse_mode: "Markdown" });
       }
-      const txt = (lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) + `\n\n` +
-                  (lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
+      const txt = (lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) + `\n\n` + (lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
       return ctx.reply(txt, { parse_mode: "Markdown" });
     }
 
@@ -788,8 +720,6 @@ export function createBot(token: string) {
     const lang = S.lang;
 
     const data = (ctx.callbackQuery as any)?.data ?? "";
-    the_idx:
-    {};
     const m = /^one_p2_(\d+)$/.exec(data);
     const idx = m ? Number(m[1]) : -1;
 
@@ -814,8 +744,7 @@ export function createBot(token: string) {
           reply_markup: Markup.inlineKeyboard([[Markup.button.url(lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", ex.pay_url!)]]).reply_markup,
         });
       }
-      const txt = (lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) + `\n\n` +
-                  (lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
+      const txt = (lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) + `\n\n` + (lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
       return ctx.reply(txt, { parse_mode: "Markdown" });
     }
 
@@ -847,8 +776,7 @@ export function createBot(token: string) {
           reply_markup: Markup.inlineKeyboard([[Markup.button.url(S.lang === "ru" ? "Оплатить (Stripe)" : "To‘lash (Stripe)", ex.pay_url!)]]).reply_markup,
         });
       }
-      const txt = (S.lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) + `\n\n` +
-                  (S.lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
+      const txt = (S.lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) + `\n\n` + (S.lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
       return ctx.reply(txt, { parse_mode: "Markdown" });
     }
 
@@ -893,8 +821,7 @@ export function createBot(token: string) {
           (S.lang === "ru" ? t.ru.dup_done_hint : t.uz.dup_done_hint);
         return ctx.reply(txt, { parse_mode: "Markdown" });
       }
-      const txt = (S.lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) + `\n\n` +
-                  (S.lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
+      const txt = (S.lang === "ru" ? t.ru.dup_creating_title : t.uz.dup_creating_title) + `\n\n` + (S.lang === "ru" ? t.ru.dup_creating_hint : t.uz.dup_creating_hint);
       return ctx.reply(txt, { parse_mode: "Markdown" });
     }
 
