@@ -127,13 +127,13 @@ type PayScope = "total" | "single";
 type Session = {
   step: Step;
   plate?: string;
-  invoice?: string; // исходный ввод пользователя
+  invoice?: string;
   ezpassAccount?: string;
   lastTotal?: number;
 
-  items?: NjItem[];          // список найденных инвойсов
-  singleIndex?: number | null; // выбранный индекс
-  scope?: PayScope;            // "total" | "single"
+  items?: NjItem[];
+  singleIndex?: number | null;
+  scope?: PayScope;
 
   lang: Lang;
 };
@@ -185,6 +185,10 @@ const planTitle = (lang: Lang, plan: PlanLabel) =>
     : "1 (to‘g‘ridan-to‘g‘ri)";
 
 const money = (x: number) => `$${Number(x || 0).toFixed(2)}`;
+const middleEllipsis = (s: string, left = 6, right = 4) =>
+  s.length <= left + right + 1 ? s : `${s.slice(0, left)}…${s.slice(-right)}`;
+const invBtnLabel = (it: NjItem) =>
+  `💵 ${money(it.amountDue)} · #${middleEllipsis(it.noticeNumber || "—")}`;
 
 /* ============== текст расчётов ============== */
 function buildPlansText(
@@ -275,12 +279,6 @@ async function findDuplicateAnyPlan(
     invoice
   );
   return b || null;
-}
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
 }
 
 /* ================== bot ================== */
@@ -485,7 +483,7 @@ export function createBot(token: string) {
               `${title}\n`,
               `Plate: *${ex.plate}*  |  Invoice: *${ex.invoice}*`,
               `Plan: *${planTitle(lang, exPlan)}*`,
-              `Summa: *$${num(ex.total_usd || 0).toFixed(2)}*`,
+              `Summa: *$${Number(ex.total_usd || 0).toFixed(2)}*`,
               `\n${hint}`,
             ].join("\n");
 
@@ -565,7 +563,6 @@ export function createBot(token: string) {
         ],
       ];
       if (T > 0) {
-        // третья кнопка — за один инвойс
         if (S.items && S.items.length > 0) {
           buttons.unshift([
             Markup.button.callback(
@@ -574,7 +571,6 @@ export function createBot(token: string) {
             ),
           ]);
         }
-        // базовые планы
         buttons.unshift([
           Markup.button.callback(
             lang === "ru" ? t.ru.plan1_btn : t.uz.plan1_btn,
@@ -613,7 +609,6 @@ export function createBot(token: string) {
         const T = +(item?.amountDue || 0).toFixed(2);
         const p2 = calcPlan2(T, 15);
 
-        // вставляем creating или отдаём существующую запись (ключ по plate + noticeNumber)
         const { created, row } = await insertCreatingOrGetExisting({
           chatId: ctx.chat!.id,
           plan: "plan2_discount",
@@ -628,7 +623,7 @@ export function createBot(token: string) {
             const txt =
               (lang === "ru" ? t.ru.dup_pending_title : t.uz.dup_pending_title) +
               `\n\nPlate: *${row.plate}*  |  Invoice: *${row.invoice}*` +
-              `\nPlan: *${planTitle(lang, "plan2_discount")}*  |  Сумма: *$${num(
+              `\nPlan: *${planTitle(lang, "plan2_discount")}*  |  Сумма: *$${Number(
                 row.total_usd || 0
               ).toFixed(2)}*\n\n` +
               (lang === "ru" ? t.ru.dup_pending_hint : t.uz.dup_pending_hint);
@@ -707,7 +702,7 @@ export function createBot(token: string) {
             const txt =
               (lang === "ru" ? t.ru.dup_pending_title : t.uz.dup_pending_title) +
               `\n\nPlate: *${row.plate}*  |  Invoice: *${row.invoice}*` +
-              `\nPlan: *${planTitle(lang, "plan2_discount")}*  |  Сумма: *$${num(
+              `\nPlan: *${planTitle(lang, "plan2_discount")}*  |  Сумма: *$${Number(
                 row.total_usd || 0
               ).toFixed(2)}*\n\n` +
               (lang === "ru" ? t.ru.dup_pending_hint : t.uz.dup_pending_hint);
@@ -774,25 +769,23 @@ export function createBot(token: string) {
     const S = ses(ctx.chat!.id);
     const lang = S.lang;
     if (!S.items?.length) {
-      return ctx.reply(lang === "ru" ? "Список инвойсов пуст." : "Invoyslar ro‘yxati bo‘sh.");
-    }
-
-    // формируем кнопки: по 2 кнопки в строке
-    const rows: any[] = [];
-    const items = S.items;
-    for (const pair of chunk(items.map((it, idx) => ({ it, idx })), 2)) {
-      rows.push(
-        pair.map(({ it, idx }) =>
-          Markup.button.callback(
-            `${it.noticeNumber ? "#" + it.noticeNumber : "—"} — ${money(it.amountDue)}`,
-            `one_${idx}`
-          )
-        )
+      return ctx.reply(
+        lang === "ru"
+          ? "Список инвойсов пуст."
+          : "Invoyslar ro‘yxati bo‘sh."
       );
     }
-    rows.push([Markup.button.callback(S.lang === "ru" ? t.ru.back_btn : t.uz.back_btn, "start_flow")]);
 
-    await ctx.reply(S.lang === "ru" ? t.ru.choose_one_title : t.uz.choose_one_title, {
+    // ОДНА кнопка в строке, сумма слева — чтобы на телефонах всегда была видна
+    const rows: any[] = [];
+    S.items.forEach((it, idx) => {
+      rows.push([Markup.button.callback(invBtnLabel(it), `one_${idx}`)]);
+    });
+    rows.push([
+      Markup.button.callback(lang === "ru" ? t.ru.back_btn : t.uz.back_btn, "start_flow"),
+    ]);
+
+    await ctx.reply(lang === "ru" ? t.ru.choose_one_title : t.uz.choose_one_title, {
       reply_markup: Markup.inlineKeyboard(rows).reply_markup,
     });
   });
@@ -802,10 +795,17 @@ export function createBot(token: string) {
     await ctx.answerCbQuery().catch(() => {});
     const S = ses(ctx.chat!.id);
     const lang = S.lang;
-    const m = ctx.match as RegExpMatchArray;
-    const idx = Number(m[1] || -1);
-    if (!S.items || idx < 0 || idx >= S.items.length) {
-      return ctx.reply(lang === "ru" ? "Инвойс не найден." : "Invoys topilmadi.");
+
+    const data = (ctx.callbackQuery as any)?.data ?? "";
+    const m = /^one_(\d+)$/.exec(data);
+    const idx = m ? Number(m[1]) : -1;
+
+    if (!Array.isArray(S.items) || idx < 0 || idx >= S.items.length) {
+      return ctx.reply(
+        lang === "ru"
+          ? "Список инвойсов устарел. Нажмите «Оплатить один инвойс» ещё раз."
+          : "Invoyslar ro‘yxati eskirgan. «Bitta invoysni to‘lash» tugmasini bosib qaytaring."
+      );
     }
     S.singleIndex = idx;
     S.scope = "single";
@@ -814,23 +814,41 @@ export function createBot(token: string) {
     const p2 = calcPlan2(+item.amountDue.toFixed(2), 15);
 
     const buttons: any[] = [];
-    buttons.push([Markup.button.callback(lang === "ru" ? t.ru.pay_one_p1_btn : t.uz.pay_one_p1_btn, `one_p1_${idx}`)]);
+    buttons.push([
+      Markup.button.callback(
+        lang === "ru" ? t.ru.pay_one_p1_btn : t.uz.pay_one_p1_btn,
+        `one_p1_${idx}`
+      ),
+    ]);
     if (p2.allowed) {
-      buttons.push([Markup.button.callback(lang === "ru" ? t.ru.pay_one_p2_btn : t.uz.pay_one_p2_btn, `one_p2_${idx}`)]);
+      buttons.push([
+        Markup.button.callback(
+          lang === "ru" ? t.ru.pay_one_p2_btn : t.uz.pay_one_p2_btn,
+          `one_p2_${idx}`
+        ),
+      ]);
     } else {
       buttons.push([
         Markup.button.callback(
-          lang === "ru" ? `${t.ru.pay_one_p2_btn} (недоступно < $70)` : `${t.uz.pay_one_p2_btn} (>$70)`,
+          lang === "ru"
+            ? `${t.ru.pay_one_p2_btn} (недоступно < $70)`
+            : `${t.uz.pay_one_p2_btn} (>$70)`,
           "noop"
         ),
       ]);
     }
-    buttons.push([Markup.button.callback(lang === "ru" ? t.ru.back_btn : t.uz.back_btn, "pay_one")]);
+    buttons.push([
+      Markup.button.callback(lang === "ru" ? t.ru.back_btn : t.uz.back_btn, "pay_one"),
+    ]);
 
     const title =
       lang === "ru"
-        ? `Выбран инвойс: *${item.noticeNumber || "—"}* на сумму *${money(item.amountDue)}*`
-        : `Tanlangan invoys: *${item.noticeNumber || "—"}* — *${money(item.amountDue)}*`;
+        ? `Выбран инвойс: *${item.noticeNumber || "—"}* на сумму *${money(
+            item.amountDue
+          )}*`
+        : `Tanlangan invoys: *${item.noticeNumber || "—"}* — *${money(
+            item.amountDue
+          )}*`;
 
     await ctx.reply(title, {
       parse_mode: "Markdown",
@@ -847,11 +865,17 @@ export function createBot(token: string) {
     await ctx.answerCbQuery().catch(() => {});
     const S = ses(ctx.chat!.id);
     const lang = S.lang;
-    const m = ctx.match as RegExpMatchArray;
-    const idx = Number(m[1] || -1);
 
-    if (!S.items || idx < 0 || idx >= S.items.length) {
-      return ctx.reply(lang === "ru" ? "Инвойс не найден." : "Invoys topilmadi.");
+    const data = (ctx.callbackQuery as any)?.data ?? "";
+    const m = /^one_p1_(\d+)$/.exec(data);
+    const idx = m ? Number(m[1]) : -1;
+
+    if (!Array.isArray(S.items) || idx < 0 || idx >= S.items.length) {
+      return ctx.reply(
+        lang === "ru"
+          ? "Список инвойсов устарел. Откройте его снова."
+          : "Ro‘yxat eskirgan. Qayta oching."
+      );
     }
     const item = S.items[idx];
     const T = +(item.amountDue || 0).toFixed(2);
@@ -859,7 +883,6 @@ export function createBot(token: string) {
       return ctx.reply(lang === "ru" ? t.ru.no_charges : t.uz.no_charges);
     }
 
-    // вставка/дубликаты по plate + noticeNumber
     const { created, row } = await insertCreatingOrGetExisting({
       chatId: ctx.chat!.id,
       plan: "plan1_direct",
@@ -873,7 +896,7 @@ export function createBot(token: string) {
         const txt =
           (lang === "ru" ? t.ru.dup_pending_title : t.uz.dup_pending_title) +
           `\n\nPlate: *${row.plate}*  |  Invoice: *${row.invoice}*` +
-          `\nPlan: *${planTitle(lang, "plan1_direct")}*  |  Сумма: *$${num(
+          `\nPlan: *${planTitle(lang, "plan1_direct")}*  |  Сумма: *$${Number(
             row.total_usd || 0
           ).toFixed(2)}*\n\n` +
           (lang === "ru" ? t.ru.dup_pending_hint : t.uz.dup_pending_hint);
@@ -941,11 +964,17 @@ export function createBot(token: string) {
     await ctx.answerCbQuery().catch(() => {});
     const S = ses(ctx.chat!.id);
     const lang = S.lang;
-    const m = ctx.match as RegExpMatchArray;
-    const idx = Number(m[1] || -1);
 
-    if (!S.items || idx < 0 || idx >= S.items.length) {
-      return ctx.reply(lang === "ru" ? "Инвойс не найден." : "Invoys topilmadi.");
+    const data = (ctx.callbackQuery as any)?.data ?? "";
+    const m = /^one_p2_(\d+)$/.exec(data);
+    const idx = m ? Number(m[1]) : -1;
+
+    if (!Array.isArray(S.items) || idx < 0 || idx >= S.items.length) {
+      return ctx.reply(
+        lang === "ru"
+          ? "Список инвойсов устарел. Откройте его снова."
+          : "Ro‘yxat eskirgan. Qayta oching."
+      );
     }
     const item = S.items[idx];
     const T = +(item.amountDue || 0).toFixed(2);
@@ -954,7 +983,6 @@ export function createBot(token: string) {
       return ctx.reply(lang === "ru" ? t.ru.p2_min70 : t.uz.p2_min70);
     }
 
-    // проверка дубля перед запросом аккаунта
     const ex = await findDuplicateAnyPlan(
       ctx.chat!.id,
       (S.plate || "").toUpperCase(),
@@ -965,7 +993,7 @@ export function createBot(token: string) {
         const txt =
           (lang === "ru" ? t.ru.dup_pending_title : t.uz.dup_pending_title) +
           `\n\nPlate: *${ex.plate}*  |  Invoice: *${ex.invoice}*` +
-          `\nPlan: *${planTitle(lang, "plan2_discount")}*  |  Сумма: *$${num(
+          `\nPlan: *${planTitle(lang, "plan2_discount")}*  |  Сумма: *$${Number(
             ex.total_usd || 0
           ).toFixed(2)}*\n\n` +
           (lang === "ru" ? t.ru.dup_pending_hint : t.uz.dup_pending_hint);
@@ -998,7 +1026,7 @@ export function createBot(token: string) {
     });
   });
 
-  /* ====== план 2 (total) — как было ====== */
+  /* ====== план 2 (total) ====== */
   bot.action("pay_plan2", async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
     const S = ses(ctx.chat!.id);
@@ -1008,7 +1036,6 @@ export function createBot(token: string) {
       return ctx.reply(S.lang === "ru" ? t.ru.p2_min70 : t.uz.p2_min70);
     }
 
-    // дубль
     const ex = await findDuplicateAnyPlan(
       ctx.chat!.id,
       (S.plate || "").toUpperCase(),
@@ -1019,7 +1046,7 @@ export function createBot(token: string) {
         const txt =
           (S.lang === "ru" ? t.ru.dup_pending_title : t.uz.dup_pending_title) +
           `\n\nPlate: *${ex.plate}*  |  Invoice: *${ex.invoice}*` +
-          `\nPlan: *${planTitle(S.lang, "plan2_discount")}*  |  Сумма: *$${num(
+          `\nPlan: *${planTitle(S.lang, "plan2_discount")}*  |  Сумма: *$${Number(
             ex.total_usd || 0
           ).toFixed(2)}*\n\n` +
           (S.lang === "ru" ? t.ru.dup_pending_hint : t.uz.dup_pending_hint);
@@ -1042,7 +1069,6 @@ export function createBot(token: string) {
       return ctx.reply(txt, { parse_mode: "Markdown" });
     }
 
-    // запрос аккаунта и дальше обработаем в await_ezpass_account (scope=total)
     S.scope = "total";
     S.ezpassAccount = undefined;
     S.step = "await_ezpass_account";
@@ -1051,7 +1077,7 @@ export function createBot(token: string) {
     });
   });
 
-  /* ====== план 1 (total) — как было ====== */
+  /* ====== план 1 (total) ====== */
   bot.action("pay_plan1", async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
     const S = ses(ctx.chat!.id);
@@ -1073,7 +1099,7 @@ export function createBot(token: string) {
         const txt =
           (S.lang === "ru" ? t.ru.dup_pending_title : t.uz.dup_pending_title) +
           `\n\nPlate: *${row.plate}*  |  Invoice: *${row.invoice}*` +
-          `\nPlan: *${planTitle(S.lang, "plan1_direct")}*  |  Сумма: *$${num(
+          `\nPlan: *${planTitle(S.lang, "plan1_direct")}*  |  Сумма: *$${Number(
             row.total_usd || 0
           ).toFixed(2)}*\n\n` +
           (S.lang === "ru" ? t.ru.dup_pending_hint : t.uz.dup_pending_hint);
